@@ -2,6 +2,7 @@
 context("test censusxy options functions")
 
 # Test Benchmarks -------------------------------------------------------------
+
 test_that('Valid Benchmarks are returned', {
   skip_if_offline()
 
@@ -12,6 +13,7 @@ test_that('Valid Benchmarks are returned', {
 })
 
 # Test Vintages ---------------------------------------------------------------
+
 test_that('Valid Vintages are returned', {
   skip_if_offline()
 
@@ -32,8 +34,8 @@ test_that('Invalid Vintages Error Correctly', {
   )
 
   skip_if_offline()
-  expect_error(
-    cxy_vintages('Bad Input'),
-    'Not a Valid Benchmark'
-  )
+    expect_error(
+      cxy_vintages('Bad Input'),
+      'Not a Valid Benchmark'
+    )
 })

@@ -1,9 +1,11 @@
 #' Batch Geocode Parsed Addresses
 #'
 #' @description
-#' Provides access to the US Census Bureau batch endpoints for locations and geographies.
-#' The function implements iteration and optional parallelization in order to geocode datasets larger than the API limit of 10,000 and more efficiently than sending 10,000 per request.
-#'  It also supports multiple outputs, including SF class objects.
+#' Provides access to the US Census Bureau batch endpoints for locations and
+#' geographies. The function implements iteration and optional parallelization
+#' in order to geocode datasets larger than the API limit of 1,000 and more
+#' efficiently than sending 10,000 per request. It also supports multiple outputs,
+#' including (optionally, if \code{sf} is installed,) \code{sf} class objects.
 #'
 #' @param .data data.frame containing columns with structured address data
 #' @param id Optional String - Name of column containing unique ID
@@ -11,28 +13,28 @@
 #' @param city Optional String - Name of column containing city
 #' @param state Optional String - Name of column containing state
 #' @param zip Optional String - Name of column containing zip code
-#' @param return One of 'locations' or 'geographies' denoting returned information from the API
-#' @param benchmark Optional Census Benchmark to geocode against. See Details.
-#' @param vintage Optional Census Vintage to geocode against. See Details.
+#' @param return One of 'locations' or 'geographies' denoting returned information
+#'     from the API. If you would like Census geography data, you must specify
+#'     a valid vintage for your benchmark.
+#' @param benchmark Optional Census benchmark to geocode against. To obtain current
+#'     valid benchmarks, use the \code{cxy_benchmarks()} function.
+#' @param vintage Optional Census vintage to geocode against. You may use the
+#'     \code{cxy_vintages()} function to obtain valid vintages.
 #' @param timeout Numeric, in minutes, how long until request times out
-#' @param parallel Integer, number of cores greater than one if parallel requests are desired. See Details.
+#' @param parallel Integer, number of cores greater than one if parallel requests
+#'     are desired. All operating systems now use a SOCK cluster, and the
+#'     dependencies are not longer suggested packages. Instead, they are
+#'     installed by default. Note that this value may not represent more cores
+#'     than the system reports are available. If it is larger, the maximum number
+#'     of available cores will be used.
 #' @param class One of 'dataframe' or 'sf' denoting the output class. 'sf' will only return matched addresses.
 #' @param output One of 'simple' or 'full' denoting the returned columns. Simple returns just coordinates.
 #'
 #' @return A data.frame or sf object containing geocoded results
 #'
 #' @details
-#' Parallel requests are not currently supported on Windows.
+#' Parallel requests are supported across platforms. If supported (POSIX platforms) the process is forked, otherwise a SOCK cluster is used (Windows).
 #' You may not specify more cores than the system reports are available
-#' If you do, the maximum number of available cores will be used.
-#'
-#' To obtain current valid benchmarks, use the \code{cxy_benchmarks()} function
-#'
-#' If you want to append census geographies, you must specify a valid vintage for your benchmark. You may use the \code{cxy_vintages()} function to obtain valid Vintages.
-#'  See \code{vignette('censusxy')} for a full walkthrough.
-#'
-#' @importFrom httr POST upload_file timeout content
-#' @importFrom utils write.table read.csv
 #'
 #' @examples
 #' # load data
@@ -64,8 +66,8 @@ cxy_geocode <- function(.data, id = NULL, street, city = NULL, state = NULL, zip
   if(!class %in% c('dataframe', 'sf')){
     stop("`class` must be one of 'dataframe' or 'sf'")
   }
-  if(class == 'sf' & !requireNamespace('sf')){
-    stop('Please install the `sf` package to use the sf output feature')
+  if(class == 'sf' & (nzchar(find.package(package = "sf", quiet = TRUE)) != TRUE)){
+    stop("Please install the 'sf' package to use the sf output feature")
   }
   if(!output %in% c('simple', 'full')){
     stop("`output` must be one of 'simple' or 'full'")
@@ -78,22 +80,23 @@ cxy_geocode <- function(.data, id = NULL, street, city = NULL, state = NULL, zip
 
   # Check Parallel Configuration
   if(parallel > 1){
-    # Check OS
-    if(.Platform$OS.type != 'unix'){
-      stop('Parallelization is only available on Unix Platforms')
-    }
-    # Check if Available
-    if(!requireNamespace('parallel')){
-      stop('Please install the `parallel` package to use parallel functionality')
-    }
+
+    # this gets around calling it as foreach::%dopar% below which sometimes errors
+    `%dopar%` <- foreach::`%dopar%`
+
     # Check Number of Cores
     avail_cores <- parallel::detectCores()
     if(parallel > avail_cores){
+
       warning('More cores specified than are available, using ', avail_cores, ' cores instead')
       core_count <- avail_cores
-    }else{
+
+    } else {
+
       core_count <- parallel
+
     }
+
   }
 
   # Handle NA Arguments
@@ -165,11 +168,22 @@ cxy_geocode <- function(.data, id = NULL, street, city = NULL, state = NULL, zip
 
     batches <- split(uniq, rep_len(seq(splt_fac), nrow(uniq)) )
 
-    results <- parallel::mclapply(batches, batch_geocoder,
-                                  return, timeout, benchmark, vintage,
-                                  mc.cores = core_count)
+    # Prevent Warning for Undeclared Global Variable
+    i = NULL
 
-  }else{ # Non Parallel
+    # create and register a cluster to run - sequential is safer, though not necessary
+    cl <- parallel::makeCluster(core_count, setup_strategy = 'sequential')
+    doParallel::registerDoParallel(cl)
+
+    # replace foreach + dopar gives you a parallel workflow, like mclapply
+    results <- foreach::foreach(i = 1:length(batches), .export = 'batch_geocoder') %dopar% {
+      batch_geocoder(batches[[i]], return, timeout, benchmark, vintage)
+    }
+
+    # however, you do need to stop the cluster.
+    parallel::stopCluster(cl)
+
+  } else { # Non Parallel
     # Split and Iterate
     batches <- split(uniq, (seq(nrow(uniq))-1) %/% 1000 )
     results <- lapply(batches, batch_geocoder,
@@ -214,8 +228,12 @@ cxy_geocode <- function(.data, id = NULL, street, city = NULL, state = NULL, zip
   if(class == 'sf'){
     valid <- return_df[which(!is.na(return_df$cxy_lat)),]
     sf <- sf::st_as_sf(valid, coords = c('cxy_lon', 'cxy_lat'), crs = 4269) # NAD83
+
     # Message Number of Rows Removed
-    message(nrow(return_df) - nrow(valid), ' rows removed to create an sf object. These were addresses that the geocoder could not match.')
+    if (nrow(return_df) - nrow(valid) > 0){
+      message(nrow(return_df) - nrow(valid), ' rows removed to create an sf object. These were addresses that the geocoder could not match.')
+    }
+
     return(sf)
   }
 

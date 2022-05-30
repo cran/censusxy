@@ -3,12 +3,11 @@
 
 # censusxy <img src="man/figures/logo.png" align="right" />
 
-[![lifecycle](https://img.shields.io/badge/lifecycle-stable-brightgreen.svg)](https://lifecycle.r-lib.org/articles/stages.html#stable)
 [![R build
-status](https://github.com/slu-openGIS/censusxy/workflows/R-CMD-check/badge.svg)](https://github.com/slu-openGIS/censusxy/actions)
+status](https://github.com/chris-prener/censusxy/workflows/R-CMD-check/badge.svg)](https://github.com/chris-prener/censusxy/actions)
 [![Coverage
-status](https://codecov.io/gh/slu-openGIS/censusxy/branch/master/graph/badge.svg)](https://codecov.io/github/slu-openGIS/censusxy?branch=master)
-[![CRAN\_status\_badge](https://www.r-pkg.org/badges/version/censusxy)](https://cran.r-project.org/package=censusxy)
+status](https://codecov.io/gh/chris-prener/censusxy/branch/master/graph/badge.svg)](https://codecov.io/github/chris-prener/censusxy?branch=main)
+[![CRAN_status_badge](https://www.r-pkg.org/badges/version/censusxy)](https://cran.r-project.org/package=censusxy)
 [![cran
 checks](https://cranchecks.info/badges/worst/censusxy)](https://cran.r-project.org/web/checks/check_results_censusxy.html)
 [![Downloads](https://cranlogs.r-pkg.org/badges/censusxy?color=brightgreen)](https://www.r-pkg.org/pkg/censusxy)
@@ -22,14 +21,28 @@ unique addresses are passed to the API for geocoding. If a data set
 exceeds 1,000 unique addresses, it will be automatically subset into
 appropriately sized API calls, geocoded, and then put back together so
 that a single object is returned. There is also support for parallel
-processing on Non-Windows platforms.
+processing of requests, which can significantly shorten the time it
+takes to batch geocode large numbers of addresses.
 
-## What’s New in v1.0.1?
+`censusxy` is described in a 2021 paper in [*Transactions in
+GIS*](https://onlinelibrary.wiley.com/doi/abs/10.1111/tgis.12741) by
+Chris and Branson - please cite the paper if you use `censusxy` in your
+work!
 
--   Changes to the default geocoding options to mirror updates to the
-    API for the 2020 Decennial Census
+## What’s New in v1.1.0?
 
-## Installing censusxy
+-   `censusxy` now supports parallel processing on Windows (macOS and
+    Linux had support for this since `v1.0.0`), thanks to a PR from
+    [Christopher Kenny](https://github.com/christopherkenny), and an
+    error that cropped up with macOS 12.4 when submitting requests for
+    parallel processing is addressed
+-   `R` version 3.4 is now the minimum version supported
+-   We’ve made some internal changes to ensure that API issues fail
+    gracefully and to improve the documentation
+
+## Installation
+
+### Installing censusxy
 
 The easiest way to get `censusxy` is to install it from CRAN:
 
@@ -42,7 +55,29 @@ from GitHub with `remotes`:
 
 ``` r
 # install.packages("remotes")
-remotes::install_github("slu-openGIS/censusxy")
+remotes::install_github("chris-prener/censusxy")
+```
+
+### Installing Suggested Dependencies
+
+Since the package does not need `sf` for its basic functionality, it is
+a suggested dependency rather than a required one. However, many users
+will want to map these data as `sf` objects, and we therefore recommend
+users install `sf`. Windows and macOS users should be able to install
+`sf` without significant issues unless they are building from source.
+Linux users will need to install several open source spatial libraries
+to get `sf` itself up and running.
+
+If you want to use these `sf`, you can either install it individually
+(faster) or install all of the suggested dependencies at once (slower,
+will also give you a number of other packages you may or may not want):
+
+``` r
+## install sf only
+install.packages("sf")
+
+## install all suggested dependencies
+install.packages("censusxy", dependencies = TRUE)
 ```
 
 ## Usage
@@ -83,5 +118,5 @@ If you request an `sf` object, you easily preview the results with the
 ## Contributor Code of Conduct
 
 Please note that this project is released with a [Contributor Code of
-Conduct](https://slu-opengis.github.io/censusxy/CODE_OF_CONDUCT.html).
+Conduct](https://chris-prener.github.io/censusxy/CODE_OF_CONDUCT.html).
 By participating in this project you agree to abide by its terms.
